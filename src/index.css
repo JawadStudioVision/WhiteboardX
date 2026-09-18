@@ -3,6 +3,7 @@ body,
 #root {
   width: 100%;
   height: 100%;
+  height: 100dvh;
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -13,9 +14,13 @@ body,
 
 .whiteboard-container {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   width: 100vw;
-  height: 100vh;
+  height: 100%;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -25,6 +30,16 @@ body,
   width: 100%;
   height: 100%;
   z-index: 1;
+}
+
+/* Ensure TLDraw native toolbar is always visible above mobile navigation bars */
+.tlui-layout__bottom {
+  bottom: max(10px, env(safe-area-inset-bottom)) !important;
+  z-index: 400 !important;
+}
+
+.tlui-toolbar {
+  pointer-events: auto !important;
 }
 
 /* Login Overlay */
@@ -147,7 +162,7 @@ body,
   color: #94a3b8;
 }
 
-/* Compact Floating Glass Header (Top Right) */
+/* Floating Glass Header (Top Right) */
 .floating-header {
   position: absolute;
   top: 10px;
@@ -286,124 +301,13 @@ body,
   color: #ef4444;
 }
 
-/* =========================================================================
-   Primary Always-Visible Floating Toolbar (Bottom Center)
-   ========================================================================= */
-.primary-tools-bar {
-  position: absolute;
-  bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 14px;
-  box-shadow: 0 10px 30px -4px rgba(0, 0, 0, 0.15), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  z-index: 1000;
-  pointer-events: auto;
-  max-width: 95vw;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.primary-tools-bar::-webkit-scrollbar {
-  display: none;
-}
-
-.tools-group {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.tools-divider {
-  width: 1px;
-  height: 22px;
-  background: #e2e8f0;
-  margin: 0 2px;
-}
-
-.tool-btn {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: #475569;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  flex-shrink: 0;
-}
-
-.tool-btn:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-}
-
-.tool-btn.active {
-  background: #0f172a;
-  color: #ffffff;
-  box-shadow: 0 2px 8px -1px rgba(15, 23, 42, 0.3);
-}
-
-.tool-tooltip {
-  display: none;
-}
-
-/* Quick Color Palette Swatches */
-.color-swatches-group {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding-left: 2px;
-}
-
-.color-dot {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 2px solid #ffffff;
-  box-shadow: 0 0 0 1px #cbd5e1;
-  cursor: pointer;
-  transition: transform 0.15s ease;
-  flex-shrink: 0;
-}
-
-.color-dot:hover {
-  transform: scale(1.2);
-}
-
-.color-dot.selected {
-  transform: scale(1.25);
-  box-shadow: 0 0 0 2px #0f172a;
-}
-
-/* Responsive Mobile Adjustments */
+/* Mobile Responsive Optimization */
 @media (max-width: 640px) {
-  .primary-tools-bar {
-    bottom: 10px;
-    padding: 4px 6px;
-    gap: 3px;
-    border-radius: 12px;
-  }
-
-  .tool-btn {
-    width: 34px;
-    height: 34px;
-  }
-
-  .color-dot {
-    width: 15px;
-    height: 15px;
+  .floating-header {
+    top: 8px;
+    right: 8px;
+    padding: 3px 8px;
+    gap: 5px;
   }
 
   .header-actions-desktop {

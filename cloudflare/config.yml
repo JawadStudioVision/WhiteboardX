@@ -1,0 +1,16 @@
+# Cloudflare Tunnel Configuration for WhiteboardX
+# Hostname: w.studiovision.org -> Local Port: 4876
+
+tunnel: 58a8b409-2623-49dd-8866-b3ee34a60066
+credentials-file: C:\Users\AI Factorz\.cloudflared\58a8b409-2623-49dd-8866-b3ee34a60066.json
+
+ingress:
+  # Map custom domain to local WhiteboardX server with WebSocket support
+  - hostname: w.studiovision.org
+    service: http://localhost:4876
+    originRequest:
+      noTLSVerify: true
+      connectTimeout: 30s
+
+  # Catch-all rule for non-matching requests
+  - service: http_status:404

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+dist-server/
+.env
+.env.local
+*.log
+.DS_Store
+C:\Users\AI Factorz\.cloudflared/

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "whiteboardx": {
+      "command": "node",
+      "args": ["c:/Users/AI Factorz/Documents/WhiteboardX/node_modules/tsx/dist/cli.mjs", "c:/Users/AI Factorz/Documents/WhiteboardX/server/mcpServer.ts"],
+      "env": {
+        "PORT": "4876"
+      }
+    }
+  }
+}

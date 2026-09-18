@@ -5,17 +5,18 @@ import express from 'express';
 import cors from 'cors';
 import compression from 'compression';
 import { WebSocketServer, WebSocket } from 'ws';
+import { customAlphabet } from 'nanoid';
 import { boardStore } from './boardStore.js';
 import { WebSocketClientMessage, WebSocketServerMessage } from './types.js';
+
+const nanoid = customAlphabet('1234567890abcdefghijklmnopqrstuvwxyz', 10);
 
 const PORT = parseInt(process.env.PORT || '4876', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 
-// Configurable authentication credentials
 const AUTH_USER = process.env.ADMIN_USER || 'admin';
 const AUTH_PASSWORD = process.env.ADMIN_PASSWORD || 'whiteboard2026';
 
-// Simple in-memory valid token set (can also generate persistent session tokens)
 const validTokens = new Set<string>();
 const MASTER_TOKEN = Buffer.from(`${AUTH_USER}:${AUTH_PASSWORD}`).toString('base64');
 validTokens.add(MASTER_TOKEN);
@@ -47,7 +48,7 @@ app.get('/api/auth/verify', (req, res) => {
   return res.status(401).json({ success: false, error: 'Unauthorized' });
 });
 
-// Auth protection middleware for API routes
+// Auth protection middleware
 const requireAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.replace(/^Bearer\s+/i, '') || (req.query.token as string);
@@ -57,7 +58,7 @@ const requireAuth = (req: express.Request, res: express.Response, next: express.
   return res.status(401).json({ success: false, error: 'Unauthorized: Authentication required' });
 };
 
-// Health endpoint (public)
+// Health endpoint
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -159,6 +160,7 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
 
 interface ClientSession {
+  clientId: string;
   ws: WebSocket;
   boardId: string;
   authenticated: boolean;
@@ -169,13 +171,18 @@ const clients: Set<ClientSession> = new Set();
 wss.on('connection', (ws: WebSocket, req) => {
   const urlParams = new URLSearchParams(req.url?.split('?')[1] || '');
   const token = urlParams.get('token') || '';
+  const initialClientId = urlParams.get('clientId') || `client_${nanoid()}`;
   const isAuthenticated = token ? validTokens.has(token) : false;
 
-  const session: ClientSession = { ws, boardId: 'default', authenticated: isAuthenticated };
+  const session: ClientSession = {
+    clientId: initialClientId,
+    ws,
+    boardId: 'default',
+    authenticated: isAuthenticated,
+  };
   clients.add(session);
 
   if (session.authenticated) {
-    // Send initial board snapshot
     const initialSnapshot = boardStore.getBoardSnapshot(session.boardId);
     const initMsg: WebSocketServerMessage = {
       type: 'init',
@@ -188,6 +195,10 @@ wss.on('connection', (ws: WebSocket, req) => {
   ws.on('message', (data: string) => {
     try {
       const msg: any = JSON.parse(data.toString());
+
+      if (msg.clientId) {
+        session.clientId = msg.clientId;
+      }
 
       if (msg.type === 'auth') {
         if (msg.token && validTokens.has(msg.token)) {
@@ -219,11 +230,11 @@ wss.on('connection', (ws: WebSocket, req) => {
       }
 
       if (msg.type === 'sync_records' && msg.records) {
-        boardStore.updateRecords(msg.boardId || session.boardId, msg.records, []);
+        boardStore.updateRecords(msg.boardId || session.boardId, msg.records, [], undefined, session.clientId);
       }
 
       if (msg.type === 'delete_records' && msg.recordIds) {
-        boardStore.updateRecords(msg.boardId || session.boardId, {}, msg.recordIds);
+        boardStore.updateRecords(msg.boardId || session.boardId, {}, msg.recordIds, undefined, session.clientId);
       }
     } catch (err) {
       console.error('[WebSocket] Error handling message:', err);
@@ -240,17 +251,23 @@ wss.on('connection', (ws: WebSocket, req) => {
   });
 });
 
-// Subscribe to board store mutations
-boardStore.subscribe(({ boardId, updated, removed, notification }) => {
+// Subscribe to board store mutations & broadcast only to other clients
+boardStore.subscribe(({ boardId, updated, removed, senderClientId, notification }) => {
   const patchMsg: WebSocketServerMessage = {
     type: 'patch',
     boardId,
     updated,
     removed,
+    senderClientId,
   };
   const patchPayload = JSON.stringify(patchMsg);
 
   for (const client of clients) {
+    // Avoid echoing changes back to the client that originated them
+    if (client.clientId === senderClientId) {
+      continue;
+    }
+
     if (client.authenticated && client.boardId === boardId && client.ws.readyState === WebSocket.OPEN) {
       client.ws.send(patchPayload);
 

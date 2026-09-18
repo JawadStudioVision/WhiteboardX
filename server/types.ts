@@ -13,14 +13,15 @@ export interface BoardSnapshot {
 }
 
 export type WebSocketClientMessage =
-  | { type: 'join'; boardId?: string }
-  | { type: 'sync_records'; boardId: string; records: Record<string, BoardRecord> }
-  | { type: 'delete_records'; boardId: string; recordIds: string[] }
+  | { type: 'auth'; token: string; boardId?: string; clientId?: string }
+  | { type: 'join'; boardId?: string; clientId?: string }
+  | { type: 'sync_records'; boardId: string; records: Record<string, BoardRecord>; clientId?: string }
+  | { type: 'delete_records'; boardId: string; recordIds: string[]; clientId?: string }
   | { type: 'ping' };
 
 export type WebSocketServerMessage =
   | { type: 'init'; boardId: string; snapshot: BoardSnapshot }
-  | { type: 'patch'; boardId: string; updated: Record<string, BoardRecord>; removed: string[] }
+  | { type: 'patch'; boardId: string; updated: Record<string, BoardRecord>; removed: string[]; senderClientId?: string }
   | { type: 'notification'; level: 'info' | 'success' | 'warn'; message: string; sender?: string }
   | { type: 'pong' };
 

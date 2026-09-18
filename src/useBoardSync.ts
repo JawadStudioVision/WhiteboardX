@@ -9,11 +9,59 @@ export interface SyncNotification {
   timestamp: number;
 }
 
+function getOrCreateClientId(): string {
+  let id = sessionStorage.getItem('whiteboardx_client_id');
+  if (!id) {
+    id = `client_${Math.random().toString(36).substring(2, 10)}`;
+    sessionStorage.setItem('whiteboardx_client_id', id);
+  }
+  return id;
+}
+
 export function useBoardSync(editor: Editor | null, boardId: string = 'default', token: string | null = null) {
   const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [notifications, setNotifications] = useState<SyncNotification[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const isApplyingRemoteChange = useRef(false);
+  const clientId = useRef<string>(getOrCreateClientId());
+
+  // Debounce sync queue for ultra-smooth 120fps local drawing and fast typing
+  const pendingRecordsRef = useRef<Record<string, any>>({});
+  const pendingDeletesRef = useRef<Set<string>>(new Set());
+  const syncTimeoutRef = useRef<any>(null);
+
+  const flushSyncQueue = () => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+
+    const records = { ...pendingRecordsRef.current };
+    const deleteIds = Array.from(pendingDeletesRef.current);
+
+    pendingRecordsRef.current = {};
+    pendingDeletesRef.current.clear();
+    syncTimeoutRef.current = null;
+
+    if (Object.keys(records).length > 0) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'sync_records',
+          boardId,
+          clientId: clientId.current,
+          records,
+        })
+      );
+    }
+
+    if (deleteIds.length > 0) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'delete_records',
+          boardId,
+          clientId: clientId.current,
+          recordIds: deleteIds,
+        })
+      );
+    }
+  };
 
   useEffect(() => {
     if (!token) {
@@ -26,7 +74,7 @@ export function useBoardSync(editor: Editor | null, boardId: string = 'default',
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.port === '5173' ? `${window.location.hostname}:4876` : window.location.host;
-    const wsUrl = `${protocol}//${host}/ws?token=${encodeURIComponent(token)}`;
+    const wsUrl = `${protocol}//${host}/ws?token=${encodeURIComponent(token)}&clientId=${encodeURIComponent(clientId.current)}`;
 
     function connect() {
       setStatus('connecting');
@@ -36,15 +84,20 @@ export function useBoardSync(editor: Editor | null, boardId: string = 'default',
 
         ws.onopen = () => {
           if (!isMounted) return;
-          console.log('[WhiteboardX Sync] WebSocket connected');
+          console.log('[WhiteboardX Sync] WebSocket connected with clientId:', clientId.current);
           setStatus('connected');
-          ws.send(JSON.stringify({ type: 'auth', token, boardId }));
+          ws.send(JSON.stringify({ type: 'auth', token, boardId, clientId: clientId.current }));
         };
 
         ws.onmessage = (event) => {
           if (!isMounted || !editor) return;
           try {
             const data = JSON.parse(event.data);
+
+            // Ignore our own echoed patches
+            if (data.senderClientId && data.senderClientId === clientId.current) {
+              return;
+            }
 
             if (data.type === 'init' && data.snapshot?.records) {
               isApplyingRemoteChange.current = true;
@@ -116,11 +169,12 @@ export function useBoardSync(editor: Editor | null, boardId: string = 'default',
     return () => {
       isMounted = false;
       if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
       if (wsRef.current) wsRef.current.close();
     };
   }, [editor, boardId, token]);
 
-  // Listen to local TLDraw store changes and sync them to server
+  // Listen to local TLDraw store changes with throttled batching
   useEffect(() => {
     if (!editor || !token) return;
 
@@ -131,43 +185,28 @@ export function useBoardSync(editor: Editor | null, boardId: string = 'default',
 
         const { added, updated, removed } = history.changes;
 
-        const recordsToSync: Record<string, any> = {};
         for (const [id, record] of Object.entries(added)) {
           if (['shape', 'binding', 'asset'].includes(record.typeName)) {
-            recordsToSync[id] = record;
+            pendingRecordsRef.current[id] = record;
+            pendingDeletesRef.current.delete(id);
           }
         }
         for (const [id, [, to]] of Object.entries(updated)) {
           if (to && ['shape', 'binding', 'asset'].includes(to.typeName)) {
-            recordsToSync[id] = to;
+            pendingRecordsRef.current[id] = to;
+            pendingDeletesRef.current.delete(id);
           }
         }
-
-        const recordsToDelete: string[] = [];
         for (const [id, record] of Object.entries(removed)) {
           if (['shape', 'binding', 'asset'].includes(record.typeName)) {
-            recordsToDelete.push(id);
+            delete pendingRecordsRef.current[id];
+            pendingDeletesRef.current.add(id);
           }
         }
 
-        if (Object.keys(recordsToSync).length > 0) {
-          wsRef.current.send(
-            JSON.stringify({
-              type: 'sync_records',
-              boardId,
-              records: recordsToSync,
-            })
-          );
-        }
-
-        if (recordsToDelete.length > 0) {
-          wsRef.current.send(
-            JSON.stringify({
-              type: 'delete_records',
-              boardId,
-              recordIds: recordsToDelete,
-            })
-          );
+        // Debounce network dispatch to 80ms to keep local drawing and typing 100% fluid
+        if (!syncTimeoutRef.current) {
+          syncTimeoutRef.current = setTimeout(flushSyncQueue, 80);
         }
       },
       { scope: 'document', source: 'user' }
@@ -175,6 +214,10 @@ export function useBoardSync(editor: Editor | null, boardId: string = 'default',
 
     return () => {
       cleanup();
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+        flushSyncQueue();
+      }
     };
   }, [editor, boardId, token]);
 

@@ -12,12 +12,20 @@ import {
 
 const nanoid = customAlphabet('1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', 10);
 
+export interface BoardMutationEvent {
+  boardId: string;
+  updated: Record<string, BoardRecord>;
+  removed: string[];
+  senderClientId?: string;
+  notification?: { level: 'info' | 'success' | 'warn'; message: string; sender?: string };
+}
+
 export class BoardStore {
   private boardsDir: string;
   private currentBoardId: string = 'default';
   private snapshots: Map<string, BoardSnapshot> = new Map();
   private saveDebounceTimers: Map<string, NodeJS.Timeout> = new Map();
-  private subscribers: Set<(event: { boardId: string; updated: Record<string, BoardRecord>; removed: string[]; notification?: { level: 'info' | 'success' | 'warn'; message: string; sender?: string } }) => void> = new Set();
+  private subscribers: Set<(event: BoardMutationEvent) => void> = new Set();
 
   constructor(boardsDir?: string) {
     this.boardsDir = boardsDir || path.resolve(process.cwd(), 'boards');
@@ -26,17 +34,23 @@ export class BoardStore {
     }
   }
 
-  public subscribe(fn: (event: { boardId: string; updated: Record<string, BoardRecord>; removed: string[]; notification?: { level: 'info' | 'success' | 'warn'; message: string; sender?: string } }) => void) {
+  public subscribe(fn: (event: BoardMutationEvent) => void) {
     this.subscribers.add(fn);
     return () => {
       this.subscribers.delete(fn);
     };
   }
 
-  private notify(boardId: string, updated: Record<string, BoardRecord>, removed: string[], notification?: { level: 'info' | 'success' | 'warn'; message: string; sender?: string }) {
+  private notify(
+    boardId: string,
+    updated: Record<string, BoardRecord>,
+    removed: string[],
+    notification?: { level: 'info' | 'success' | 'warn'; message: string; sender?: string },
+    senderClientId?: string
+  ) {
     for (const sub of this.subscribers) {
       try {
-        sub({ boardId, updated, removed, notification });
+        sub({ boardId, updated, removed, senderClientId, notification });
       } catch (err) {
         console.error('[BoardStore] Error notifying subscriber:', err);
       }
@@ -85,7 +99,8 @@ export class BoardStore {
     boardId: string,
     recordsToUpdate: Record<string, BoardRecord>,
     recordsToDelete: string[] = [],
-    senderMessage?: string
+    senderMessage?: string,
+    senderClientId?: string
   ) {
     const snapshot = this.getBoardSnapshot(boardId);
 
@@ -110,7 +125,8 @@ export class BoardStore {
       boardId,
       changedRecords,
       removedIds,
-      senderMessage ? { level: 'info', message: senderMessage, sender: 'AI Agent' } : undefined
+      senderMessage ? { level: 'info', message: senderMessage, sender: 'AI Agent' } : undefined,
+      senderClientId
     );
   }
 
@@ -247,7 +263,6 @@ export class BoardStore {
     let sourceRecord = snapshot.records[params.source_id];
     let targetRecord = snapshot.records[params.target_id];
 
-    // Try finding by prefix if direct id wasn't prefixed with shape:
     if (!sourceRecord && !params.source_id.startsWith('shape:')) {
       sourceRecord = snapshot.records[`shape:${params.source_id}`];
       if (sourceRecord) params.source_id = `shape:${params.source_id}`;
@@ -356,7 +371,7 @@ export class BoardStore {
       x: params.x,
       y: params.y,
       rotation: 0,
-      index: 'a0', // frames generally go beneath items
+      index: 'a0',
       parentId: 'page:page',
       isLocked: false,
       opacity: 1,
@@ -449,5 +464,4 @@ export class BoardStore {
   }
 }
 
-// Global singleton instance for the running server process
 export const boardStore = new BoardStore();

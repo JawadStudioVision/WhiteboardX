@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Tldraw, Editor, createShapeId } from '@tldraw/tldraw';
 import { useBoardSync } from './useBoardSync';
 import {
@@ -23,10 +23,10 @@ export function App() {
   const [editor, setEditor] = useState<Editor | null>(null);
   const [boardId] = useState<string>('default');
 
-  // Auth State
+  // Auth State - No prefilled usernames or passwords
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('whiteboardx_token'));
-  const [username, setUsername] = useState<string>(() => localStorage.getItem('whiteboardx_user') || 'admin');
-  const [inputUser, setInputUser] = useState<string>('admin');
+  const [username, setUsername] = useState<string>(() => localStorage.getItem('whiteboardx_user') || '');
+  const [inputUser, setInputUser] = useState<string>('');
   const [inputPass, setInputPass] = useState<string>('');
   const [authError, setAuthError] = useState<string>('');
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
@@ -67,6 +67,8 @@ export function App() {
     localStorage.removeItem('whiteboardx_token');
     localStorage.removeItem('whiteboardx_user');
     setToken(null);
+    setInputUser('');
+    setInputPass('');
   };
 
   const handleCreateQuickNote = useCallback(() => {
@@ -140,7 +142,7 @@ export function App() {
             <div className="login-header">
               <span className="login-logo">🎨</span>
               <h2>WhiteboardX</h2>
-              <p>Enter your username and password to access the whiteboard canvas.</p>
+              <p>Enter your username and password to access the canvas.</p>
             </div>
 
             <form onSubmit={handleLogin} className="login-form">
@@ -154,7 +156,7 @@ export function App() {
                   type="text"
                   value={inputUser}
                   onChange={(e) => setInputUser(e.target.value)}
-                  placeholder="admin"
+                  placeholder="Enter username"
                   required
                   autoFocus
                 />
@@ -168,7 +170,7 @@ export function App() {
                   type="password"
                   value={inputPass}
                   onChange={(e) => setInputPass(e.target.value)}
-                  placeholder="••••••••••••"
+                  placeholder="Enter password"
                   required
                 />
               </div>
@@ -195,7 +197,6 @@ export function App() {
               <span className="brand-logo">🎨</span>
               <div className="brand-text">
                 <span className="brand-title">WhiteboardX</span>
-                <span className="brand-sub">Infinite AI Canvas</span>
               </div>
             </div>
 
@@ -210,7 +211,7 @@ export function App() {
 
             <div className="ai-agent-pill" title="MCP Server is listening for AI Agent tools">
               <Bot size={14} className="ai-icon" />
-              <span>MCP Agent Active</span>
+              <span>MCP Active</span>
               <span className="ai-pulse" />
             </div>
           </div>
@@ -238,7 +239,7 @@ export function App() {
 
             <div className="user-profile-badge">
               <User size={13} />
-              <span>{username}</span>
+              <span>{username || 'User'}</span>
               <button className="logout-btn" onClick={handleLogout} title="Log Out">
                 <LogOut size={13} />
               </button>

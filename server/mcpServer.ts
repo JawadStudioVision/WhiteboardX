@@ -2,19 +2,27 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { boardStore } from './boardStore.js';
+import { planDiagramWithLaya, applyDiagramPlan } from './layaCanvas.js';
 
 const SERVER_PORT = process.env.PORT || '4876';
 const SERVER_URL = `http://127.0.0.1:${SERVER_PORT}`;
+const MASTER_TOKEN = Buffer.from(
+  `${process.env.ADMIN_USER || 'admin'}:${process.env.ADMIN_PASSWORD || 'whiteboard2026'}`
+).toString('base64');
 
 // Helper to execute via running HTTP server if available (for instant WS broadcast) or local boardStore
 async function executeTool(toolName: string, params: any) {
   try {
+    const timeoutMs = toolName === 'generate_diagram_layout' ? 8000 : 2500;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 1200);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     const res = await fetch(`${SERVER_URL}/api/tools/${toolName}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${MASTER_TOKEN}`,
+      },
       body: JSON.stringify(params),
       signal: controller.signal,
     });
@@ -44,6 +52,10 @@ async function executeTool(toolName: string, params: any) {
       return boardStore.createFrame(params);
     case 'clear_board':
       return boardStore.clearBoard(params.boardId || 'default', params.archive ?? true);
+    case 'generate_diagram_layout': {
+      const plan = await planDiagramWithLaya(params.prompt, params.theme);
+      return applyDiagramPlan(plan, params.boardId || 'default');
+    }
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
@@ -249,6 +261,35 @@ server.tool(
       return {
         isError: true,
         content: [{ type: 'text', text: `Failed to clear board: ${error.message}` }],
+      };
+    }
+  }
+);
+
+// Tool: generate_diagram_layout (Laya-Powered)
+server.tool(
+  'generate_diagram_layout',
+  'Uses local sub-35ms Laya decision engine to classify diagram intent (flowchart, kanban, architecture, brainstorm) and generate complete coordinated whiteboard layouts in a single call.',
+  {
+    prompt: z.string().describe('Natural language description of the diagram, workflow, or layout to create'),
+    theme: z.string().optional().describe('Color or aesthetic theme (default: "default")'),
+    boardId: z.string().optional().describe('Target board ID (default: "default")'),
+  },
+  async (params) => {
+    try {
+      const result = await executeTool('generate_diagram_layout', params);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Diagram layout successfully generated with Laya!\nIntent: ${result.diagram_type} (Engine: ${result.engine})\nCreated: ${result.framesCreated || 0} frames, ${result.shapesCreated || 0} shapes, ${result.arrowsCreated || 0} arrows`,
+          },
+        ],
+      };
+    } catch (error: any) {
+      return {
+        isError: true,
+        content: [{ type: 'text', text: `Failed to generate diagram layout: ${error.message}` }],
       };
     }
   }

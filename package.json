@@ -13,7 +13,8 @@
     "start": "node dist-server/server.js",
     "start:headless": "node dist-server/server.js",
     "mcp": "tsx server/mcpServer.ts",
-    "test:mcp": "tsx server/testMcp.ts"
+    "test:mcp": "tsx server/testMcp.ts",
+    "test:laya": "tsx server/testLayaMcp.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.6.1",

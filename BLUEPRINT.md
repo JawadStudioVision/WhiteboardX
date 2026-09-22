@@ -43,15 +43,22 @@ flowchart TD
 - **Archive System**: When boards are cleared, snapshots are archived with ISO timestamps to `./boards/archive/`.
 
 ### D. Model Context Protocol (MCP) Server (`server/mcpServer.ts`)
-Implements `@modelcontextprotocol/sdk` over `stdio` transport, exposing 6 programmatic tools for AI agents:
-1. `get_board_state`: Inspects all shapes, labels, positions, and connections.
-2. `create_sticky_note`: Creates sticky notes with text, color, coordinates.
-3. `create_shape`: Creates geometric shapes (`rectangle`, `ellipse`, `diamond`, `triangle`, `cloud`, etc.).
-4. `connect_nodes`: Creates directional connector arrows magnetically bound between source and target shapes.
-5. `create_frame`: Creates bounding box workflow clusters.
-6. `clear_board`: Archives and resets the canvas.
+Implements `@modelcontextprotocol/sdk` over `stdio` transport, exposing 7 programmatic tools for AI agents:
+1. `generate_diagram_layout`: **Laya Decision Engine** (<35ms non-autoregressive ModernBERT). Classifies natural language prompts into diagram templates (`flowchart`, `kanban_board`, `system_architecture`, `brainstorm_cluster`, `clear_board`) and computes coordinate layouts, shapes, frames, and arrows in a single call.
+2. `get_board_state`: Inspects all shapes, labels, positions, and connections.
+3. `create_sticky_note`: Creates sticky notes with text, color, coordinates.
+4. `create_shape`: Creates geometric shapes (`rectangle`, `ellipse`, `diamond`, `triangle`, `cloud`, etc.).
+5. `connect_nodes`: Creates directional connector arrows magnetically bound between source and target shapes.
+6. `create_frame`: Creates bounding box workflow clusters.
+7. `clear_board`: Archives and resets the canvas.
 
-### E. Remote Access Layer (`cloudflare/`)
+### E. Laya-Powered Canvas Planner (`server/layaCanvas.ts` & `tools/laya_canvas_router.py`)
+- **Model**: `convaiinnovations/laya` (421M ModernBERT-large classifier).
+- **Sub-35ms Intent Classification**: Eliminates slow LLM round-trips for common diagram and board organization intents.
+- **Auto-Coordinate Generator**: Calculates bounding boxes, node geometries, auto-staggering, and directional connector arrows.
+- **Subprocess Bridge**: Executes via central `.venv` with automatic in-process fallback layout planning.
+
+### F. Remote Access Layer (`cloudflare/`)
 - **Tunnel Name**: `whiteboardx`
 - **Tunnel UUID**: `58a8b409-2623-49dd-8866-b3ee34a60066`
 - **Config**: `cloudflare/config.yml` routing `w.studiovision.org` $\to$ `http://localhost:4876`.

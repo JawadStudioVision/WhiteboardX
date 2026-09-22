@@ -54,6 +54,7 @@ When configured in your MCP client, the following tools become available:
 
 | Tool Name | Parameters | Description |
 | :--- | :--- | :--- |
+| `generate_diagram_layout` | `prompt`, `theme?`, `boardId?` | 🧠 **Laya Decision Engine**: Classifies diagram intent (`flowchart`, `kanban_board`, `system_architecture`, `brainstorm_cluster`) and renders complete multi-node layouts with arrows and frames in a single call (<35ms). |
 | `get_board_state` | `boardId?` | Returns all active shapes, IDs, positions, text, and connections on the board. |
 | `create_sticky_note` | `text`, `color?`, `x?`, `y?`, `size?` | Creates a sticky note (post-it) on canvas. Colors: `yellow`, `blue`, `green`, `pink`, `red`, `violet`, `orange`, `grey`. |
 | `create_shape` | `type?`, `label?`, `width?`, `height?`, `x?`, `y?`, `color?`, `fill?` | Creates shapes (`rectangle`, `ellipse`, `diamond`, `triangle`, `cloud`, `star`, etc.). |

@@ -8,6 +8,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { customAlphabet } from 'nanoid';
 import { boardStore } from './boardStore.js';
 import { WebSocketClientMessage, WebSocketServerMessage } from './types.js';
+import { planDiagramWithLaya, applyDiagramPlan } from './layaCanvas.js';
 
 const nanoid = customAlphabet('1234567890abcdefghijklmnopqrstuvwxyz', 10);
 
@@ -82,7 +83,7 @@ app.get('/api/boards/:id/summary', requireAuth, (req, res) => {
 });
 
 // Protected REST endpoint for agent tool execution
-app.post('/api/tools/:toolName', requireAuth, (req, res) => {
+app.post('/api/tools/:toolName', requireAuth, async (req, res) => {
   const toolName = req.params.toolName as string;
   const params = req.body || {};
 
@@ -112,11 +113,35 @@ app.post('/api/tools/:toolName', requireAuth, (req, res) => {
         const result = boardStore.clearBoard(params.boardId || 'default', params.archive ?? true);
         return res.json({ success: true, result });
       }
+      case 'generate_diagram_layout': {
+        const plan = await planDiagramWithLaya(params.prompt, params.theme);
+        const result = applyDiagramPlan(plan, params.boardId || 'default');
+        return res.json({ success: true, result });
+      }
       default:
         return res.status(404).json({ success: false, error: `Unknown tool: ${toolName}` });
     }
   } catch (err: any) {
     console.error(`[Server] Error executing tool ${toolName}:`, err);
+    return res.status(500).json({ success: false, error: err.message || 'Internal server error' });
+  }
+});
+
+// Direct Laya Diagram Planning Endpoint
+app.post('/api/laya/plan-diagram', requireAuth, async (req, res) => {
+  try {
+    const { prompt, theme, boardId, execute = true } = req.body || {};
+    if (!prompt) {
+      return res.status(400).json({ success: false, error: 'prompt is required' });
+    }
+    const plan = await planDiagramWithLaya(prompt, theme);
+    let result: any = null;
+    if (execute) {
+      result = applyDiagramPlan(plan, boardId || 'default');
+    }
+    return res.json({ success: true, plan, result });
+  } catch (err: any) {
+    console.error('[Server] Error in /api/laya/plan-diagram:', err);
     return res.status(500).json({ success: false, error: err.message || 'Internal server error' });
   }
 });
